@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="description" content="Hub : Fault tolerant, highly available service for data storage and distribution.">
+
+    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
+
+    <title>Hub</title>
+  </head>
+
+  <body>
+
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+          <a id="forkme_banner" href="https://github.com/flightstats/hub">View on GitHub</a>
+
+          <h1 id="project_title">Hub</h1>
+          <h2 id="project_tagline">Fault tolerant, highly available service for data storage and distribution.</h2>
+
+            <section id="downloads">
+              <a class="zip_download_link" href="https://github.com/flightstats/hub/zipball/master">Download this project as a .zip file</a>
+              <a class="tar_download_link" href="https://github.com/flightstats/hub/tarball/master">Download this project as a tar.gz file</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <h1>
+<a id="the-hub" class="anchor" href="#the-hub" aria-hidden="true"><span class="octicon octicon-link"></span></a>The Hub</h1>
+
+<ul>
+<li><a href="#overview">overview</a></li>
+<li><a href="#consistency">consistency</a></li>
+<li><a href="#clients">clients</a></li>
+<li><a href="#error-handling">error handling</a></li>
+<li><a href="#faq">FAQ</a></li>
+<li><a href="#hub-resources">hub resources</a></li>
+<li><a href="#list-channels">list channels</a></li>
+<li><a href="#create-a-channel">create a channel</a></li>
+<li><a href="#update-a-channel">update a channel</a></li>
+<li><a href="#fetch-channel-metadata">fetch channel metadata</a></li>
+<li><a href="#insert-content-into-channel">insert content into channel</a></li>
+<li><a href="#fetch-content-from-channel">fetch content from channel</a></li>
+<li><a href="#latest-channel-item">latest channel item</a></li>
+<li><a href="#earliest-channel-item">earliest channel item</a></li>
+<li><a href="#next-and-previous-links">next and previous links</a></li>
+<li><a href="#channel-status">channel status</a></li>
+<li><a href="#channel-limits">channel limits</a></li>
+<li><a href="#tag-interface">tag interface</a></li>
+<li><a href="#tag-unions">tag unions</a></li>
+<li><a href="#time-interface">time interface</a></li>
+<li><a href="#subscribe-to-events">subscribe to events</a></li>
+<li><a href="#group-callback">group callback</a></li>
+<li><a href="#provider-interface">provider interface</a></li>
+<li><a href="#delete-a-channel">delete a channel</a></li>
+<li><a href="#replication">replication</a></li>
+<li><a href="#alerts">alerts</a></li>
+<li><a href="#health-check">health check</a></li>
+<li><a href="#access-control">access control</a></li>
+<li><a href="#encrypted-hub">encrypted-hub</a></li>
+<li><a href="#monitoring">monitoring</a></li>
+<li><a href="#development">development</a></li>
+<li><a href="#deployments">deployments</a></li>
+<li><a href="#Requirements-Notes">Requirements Notes</a></li>
+</ul>
+
+<h2>
+<a id="overview" class="anchor" href="#overview" aria-hidden="true"><span class="octicon octicon-link"></span></a>overview</h2>
+
+<p>The Hub is designed to be a fault tolerant, highly available service for data storage and distribution.  All features are available via a REST API.</p>
+
+<p>It supports channels of data ordered by time.
+Channels represent uniquely addressable items that are iterable and query-able by time.  Each item may be up to to 20 MB.</p>
+
+<p>The <a href="#encrypted-hub">encrypted-hub</a> (EH) is a separate installation of the Hub which ensures that all communication is encrypted.</p>
+
+<h2>
+<a id="consistency" class="anchor" href="#consistency" aria-hidden="true"><span class="octicon octicon-link"></span></a>consistency</h2>
+
+<ul>
+<li>All times from the Hub are in UTC.</li>
+<li>By default all iteration, queries, group callbacks and websockets return items with stable ordering.  Data is considered stable when iteration will provide consistent results.</li>
+<li>All requests for a specific item by id will return that item if it exists.</li>
+</ul>
+
+<h2>
+<a id="error-handling" class="anchor" href="#error-handling" aria-hidden="true"><span class="octicon octicon-link"></span></a>error handling</h2>
+
+<p>Clients should consider handling transient server errors (500 level return codes) with retry logic.  This helps to ensure that transient issues (networking, etc)
+  do not prevent the client from entering data. For Java clients, this framework provides many options - <a href="https://github.com/rholder/guava-retrying">https://github.com/rholder/guava-retrying</a>
+We also recommend clients use exponential backoff for retries.</p>
+
+<h2>
+<a id="faq" class="anchor" href="#faq" aria-hidden="true"><span class="octicon octicon-link"></span></a>FAQ</h2>
+
+<ul>
+<li>
+<p>Why does /latest (or /earliest) return 404?</p>
+
+<p>Either data has never been added to that channel, or the last data added to that channel is older than the time to live (ttlDays).</p>
+</li>
+<li>
+<p>How can I guarantee ordering for items within a channel?</p>
+
+<p>You can wait for the response for an item before writing the next item.  </p>
+</li>
+</ul>
+
+<h2>
+<a id="hub-resources" class="anchor" href="#hub-resources" aria-hidden="true"><span class="octicon octicon-link"></span></a>hub resources</h2>
+
+<p>To explore the Resources available in the Hub, go to http://hub/</p>
+
+<p><strong>Note</strong>
+For the purposes of this document, the Hub is at http://hub/.
+On your local machine it is at: http://localhost:9080/</p>
+
+<h2>
+<a id="list-channels" class="anchor" href="#list-channels" aria-hidden="true"><span class="octicon octicon-link"></span></a>list channels</h2>
+
+<p>To obtain the list of channels:</p>
+
+<p><code>GET http://hub/channel</code></p>
+
+<p>On success:  <code>HTTP/1.1 200 OK</code>
+Content-Type is <code>application/json</code></p>
+
+<div class="highlight highlight-json"><pre>{
+  <span class="pl-s"><span class="pl-pds">"</span>_links<span class="pl-pds">"</span></span> : {
+    <span class="pl-s"><span class="pl-pds">"</span>self<span class="pl-pds">"</span></span> : {
+      <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel<span class="pl-pds">"</span></span>
+    },
+    <span class="pl-s"><span class="pl-pds">"</span>channels<span class="pl-pds">"</span></span> : [ {
+      <span class="pl-s"><span class="pl-pds">"</span>name<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>stumptown<span class="pl-pds">"</span></span>,
+      <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown<span class="pl-pds">"</span></span>
+    }, {
+      <span class="pl-s"><span class="pl-pds">"</span>name<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>ptown<span class="pl-pds">"</span></span>,
+      <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/ptown<span class="pl-pds">"</span></span>
+    } ]
+  }
+}</pre></div>
+
+<h2>
+<a id="create-a-channel" class="anchor" href="#create-a-channel" aria-hidden="true"><span class="octicon octicon-link"></span></a>create a channel</h2>
+
+<ul>
+<li><p><code>name</code> <em>is case sensitive</em>, is limited to <em>48 characters</em>, and may only contain <code>a-z</code>, <code>A-Z</code>, <code>0-9</code> and underscore <code>_</code>.
+Hyphens are not allowed in channel names. Surrounding white space is trimmed (e.g. "  foo  " -&gt; "foo" ).</p></li>
+<li><p><code>ttlDays</code> and <code>maxItems</code> are optional, and only one can be specified at a time. If neither is specified, a default value of 120 ttlDays is used.
+Please see <a href="#channel-limits">channel limits</a> for more details.</p></li>
+<li><p><code>description</code> is optional and defaults to an empty string.  This text field can be up to 1024 bytes long.</p></li>
+<li><p><code>tags</code> is an optional array of string values.  Tag values are limited to 48 characters, and may only contain <code>a-z</code>, <code>A-Z</code> and <code>0-9</code>.
+A channel may have at most 20 tags.</p></li>
+<li><p><code>replicationSource</code> is the optional fully qualified path to channel in a another hub.  The data from the other channel
+will be duplicated into this channel.  Please see <a href="#replication">replication</a> for more details.</p></li>
+</ul>
+
+<p><code>PUT http://hub/channel/stumptown</code></p>
+
+<ul>
+<li>Content-type: application/json</li>
+</ul>
+
+<div class="highlight highlight-json"><pre>{
+   <span class="pl-s"><span class="pl-pds">"</span>ttlDays<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>14<span class="pl-pds">"</span></span>,
+   <span class="pl-s"><span class="pl-pds">"</span>description<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>a sequence of all the coffee orders from stumptown<span class="pl-pds">"</span></span>,
+   <span class="pl-s"><span class="pl-pds">"</span>tags<span class="pl-pds">"</span></span>: [<span class="pl-s"><span class="pl-pds">"</span>coffee<span class="pl-pds">"</span></span>]
+}</pre></div>
+
+<p>On success:  <code>HTTP/1.1 201 OK</code></p>
+
+<div class="highlight highlight-json"><pre>{
+    <span class="pl-s"><span class="pl-pds">"</span>_links<span class="pl-pds">"</span></span>: {
+        <span class="pl-s"><span class="pl-pds">"</span>self<span class="pl-pds">"</span></span>: {
+            <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown<span class="pl-pds">"</span></span>
+        },
+        <span class="pl-s"><span class="pl-pds">"</span>latest<span class="pl-pds">"</span></span>: {
+            <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/latest<span class="pl-pds">"</span></span>
+        },
+        <span class="pl-s"><span class="pl-pds">"</span>earliest<span class="pl-pds">"</span></span>: {
+            <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/earliest<span class="pl-pds">"</span></span>
+        },
+        <span class="pl-s"><span class="pl-pds">"</span>ws<span class="pl-pds">"</span></span>: {
+            <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>ws://hub/channel/stumptown/ws<span class="pl-pds">"</span></span>
+        },
+        <span class="pl-s"><span class="pl-pds">"</span>time<span class="pl-pds">"</span></span>: {
+            <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/time<span class="pl-pds">"</span></span>
+        },
+        <span class="pl-s"><span class="pl-pds">"</span>status<span class="pl-pds">"</span></span> : {
+              <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/load_test_1/status<span class="pl-pds">"</span></span>
+        }
+    },
+    <span class="pl-s"><span class="pl-pds">"</span>name<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>stumptown<span class="pl-pds">"</span></span>,
+    <span class="pl-s"><span class="pl-pds">"</span>creationDate<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>2013-04-23T20:25:33.434Z<span class="pl-pds">"</span></span>,
+    <span class="pl-s"><span class="pl-pds">"</span>ttlDays<span class="pl-pds">"</span></span>: <span class="pl-c1">14</span>,
+    <span class="pl-s"><span class="pl-pds">"</span>description<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>a sequence of all the coffee orders from stumptown<span class="pl-pds">"</span></span>,
+    <span class="pl-s"><span class="pl-pds">"</span>tags<span class="pl-pds">"</span></span>: [<span class="pl-s"><span class="pl-pds">"</span>coffee<span class="pl-pds">"</span></span>],
+    <span class="pl-s"><span class="pl-pds">"</span>replicationSource<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span><span class="pl-pds">"</span></span>
+}</pre></div>
+
+<p>Here's how you can do this with curl:</p>
+
+<div class="highlight highlight-bash"><pre>curl -i -X PUT http://hub/channel/stumptown
+
+or
+
+curl -i -X PUT --header <span class="pl-s"><span class="pl-pds">"</span>Content-type: application/json<span class="pl-pds">"</span></span>  --data <span class="pl-s"><span class="pl-pds">'</span>{ "description" : "stumpy", "ttlDays" : 1 }<span class="pl-pds">'</span></span> http://localhost:9080/channel/stumptown</pre></div>
+
+<h2>
+<a id="update-a-channel" class="anchor" href="#update-a-channel" aria-hidden="true"><span class="octicon octicon-link"></span></a>update a channel</h2>
+
+<p>Some channel metadata can be updated. The update format looks much like the channel create format
+(currently, only <code>ttlDays</code>, <code>description</code>, <code>tags</code> and <code>replicationSource</code> can be updated).
+Each of these fields is optional.</p>
+
+<p><code>PUT http://hub/channel/channelname</code></p>
+
+<h2>
+<a id="fetch-channel-metadata" class="anchor" href="#fetch-channel-metadata" aria-hidden="true"><span class="octicon octicon-link"></span></a>fetch channel metadata</h2>
+
+<p>To fetch metadata about a channel, do a GET on its <code>self</code> link:</p>
+
+<p><code>GET http://hub/channel/stumptown</code></p>
+
+<p>On success: <code>HTTP/1.1 200 OK</code>  (see example return data from create channel).</p>
+
+<p>Here's how you can do this with curl:</p>
+
+<p><code>curl http://hub/channel/stumptown</code></p>
+
+<h2>
+<a id="insert-content-into-channel" class="anchor" href="#insert-content-into-channel" aria-hidden="true"><span class="octicon octicon-link"></span></a>insert content into channel</h2>
+
+<p>To insert data to a channel, issue a POST on the channel's <code>self</code> URI and specify the appropriate
+content-type header (all content types should be supported).  The <code>Content-Encoding</code> header is optional:</p>
+
+<pre><code>POST http://hub/channel/stumptown
+Content-type: text/plain
+Content-Encoding: gzip
+Accept: application/json
+___body_contains_arbitrary_content
+</code></pre>
+
+<p>On success: <code>HTTP/1.1 201 Created</code></p>
+
+<p><code>Location: http://hub/channel/stumptown/2013/04/23/20/42/31/749/{hash}</code></p>
+
+<div class="highlight highlight-json"><pre>{
+  <span class="pl-s"><span class="pl-pds">"</span>_links<span class="pl-pds">"</span></span> : {
+    <span class="pl-s"><span class="pl-pds">"</span>channel<span class="pl-pds">"</span></span> : {
+      <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown<span class="pl-pds">"</span></span>
+    },
+    <span class="pl-s"><span class="pl-pds">"</span>self<span class="pl-pds">"</span></span> : {
+      <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/2013/04/23/20/42/31/749/{hash}<span class="pl-pds">"</span></span>
+    }
+  },
+  <span class="pl-s"><span class="pl-pds">"</span>timestamp<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>2013-04-23T20:42:31.146Z<span class="pl-pds">"</span></span>
+}</pre></div>
+
+<p>Here's how you could do this with curl:</p>
+
+<div class="highlight highlight-bash"><pre>curl -i -X POST --header <span class="pl-s"><span class="pl-pds">"</span>Content-type: text/plain<span class="pl-pds">"</span></span> --data <span class="pl-s"><span class="pl-pds">'</span>your content here<span class="pl-pds">'</span></span> http://hub/channel/stumptown</pre></div>
+
+<h2>
+<a id="fetch-content-from-channel" class="anchor" href="#fetch-content-from-channel" aria-hidden="true"><span class="octicon octicon-link"></span></a>fetch content from channel</h2>
+
+<p>To fetch content that was stored into a hub channel, do a <code>GET</code> on the <code>self</code> link in the above response:</p>
+
+<p><code>GET http://hub/channel/stumptown/2013/04/23/20/42/31/749/{hash}</code></p>
+
+<p>On success: <code>HTTP/1.1 200 OK</code></p>
+
+<pre><code>Content-Type: text/plain
+Creation-Date: 2013-04-23T00:21:30.662Z
+Link: &lt;http://hub/channel/stumptown/2013/04/23/20/42/31/749/{hash}/previous&gt;;rel="previous"
+Link: &lt;http://hub/channel/stumptown/2013/04/23/20/42/31/749/{hash}/next&gt;;rel="next"
+...other.headers...
+
+your content here
+</code></pre>
+
+<p>Note: The <code>Content-Type</code> will match the Content-Type used when inserting the data.<br>
+There are two <code>Link</code> headers that provide links to the previous and next items in the channel.
+The <code>Creation-Date</code> header will correspond to when the data was inserted into the channel.</p>
+
+<p>Here's how you can do this with curl:</p>
+
+<p><code>curl -i http://hub/channel/stumptown/2013/04/23/20/42/31/749/{hash}</code></p>
+
+<h2>
+<a id="fetch-latest-channel-item" class="anchor" href="#fetch-latest-channel-item" aria-hidden="true"><span class="octicon octicon-link"></span></a>fetch latest channel item</h2>
+
+<p>To retrieve the latest item inserted into a channel, issue a HEAD or GET request on the <code>latest</code> link 
+returned from the channel metadata.  The Hub will issue a 303 redirect.</p>
+
+<p><code>HEAD http://hub/channel/stumptown/latest</code></p>
+
+<p>On success:  <code>HTTP/1.1 303 See Other</code>
+<code>Location: http://hub/channel/stumptown/2013/04/23/20/42/31/749/{hash}</code></p>
+
+<p>Here is how you can do this with curl:</p>
+
+<p><code>curl -I http://hub/channel/stumptown/latest</code></p>
+
+<p>You can also retrieve the latest N items by using /latest/{n}</p>
+
+<h2>
+<a id="fetch-earliest-channel-item" class="anchor" href="#fetch-earliest-channel-item" aria-hidden="true"><span class="octicon octicon-link"></span></a>fetch earliest channel item</h2>
+
+<p>To retrieve the earliest item inserted into a channel, issue a HEAD or GET request on the <code>earliest</code> link 
+returned from the channel metadata.  The Hub will issue a 303 redirect.</p>
+
+<p><code>HEAD http://hub/channel/stumptown/earliest</code></p>
+
+<p>On success:  <code>HTTP/1.1 303 See Other</code>
+<code>Location: http://hub/channel/stumptown/2013/04/23/20/42/31/749/{hash}</code></p>
+
+<p>Here is how you can do this with curl:</p>
+
+<p><code>curl -I http://hub/channel/stumptown/earliest</code></p>
+
+<p>You can also retrieve the earliest N items by using /earliest/{n}</p>
+
+<h2>
+<a id="next-and-previous-links" class="anchor" href="#next-and-previous-links" aria-hidden="true"><span class="octicon octicon-link"></span></a>next and previous links</h2>
+
+<p>A GET on the next and previous links returned as headers with content will redirect to those respective items.  A 404 will be returned if they don't exist.</p>
+
+<p>Any item's uri can be appended with /next or /previous to navigate forward or backward.
+If you append a number /next/20 or /previous/15, and you'll receive a list of that many items.</p>
+
+<p>For example:</p>
+
+<p><code>GET http://hub/channel/stumptown/2014/12/23/23/14/50/514/xIXX5L/previous/10</code></p>
+
+<p>On success: <code>HTTP/1.1 200 OK</code></p>
+
+<pre><code>{
+  "_links" : {
+    "self" : {
+      "href" : "http://hub/channel/stumptown/2014/12/23/23/14/50/514/xIXX5L/previous/10"
+    },
+    "next" : {
+      "href" : "http://hub/channel/stumptown/2014/12/23/23/14/49/887/x46z8p/next/10"
+    },
+    "previous" : {
+      "href" : "http://hub/channel/stumptown/2014/12/23/23/14/42/751/mRklXw/previous/10"
+    },
+    "uris" : [
+        "http://hub/channel/stumptown/2014/12/23/23/14/42/751/mRklXw", 
+        "http://hub/channel/stumptown/2014/12/23/23/14/43/339/CJ9mt9", 
+        "http://hub/channel/stumptown/2014/12/23/23/14/44/163/LzhylF", 
+        "http://hub/channel/stumptown/2014/12/23/23/14/44/588/zDygpg", 
+        "http://hub/channel/stumptown/2014/12/23/23/14/45/105/ZuJUmM", 
+        "http://hub/channel/stumptown/2014/12/23/23/14/45/972/qeKDF6", 
+        "http://hub/channel/stumptown/2014/12/23/23/14/46/703/Jm09Un", 
+        "http://hub/channel/stumptown/2014/12/23/23/14/47/376/swdWJD", 
+        "http://hub/channel/stumptown/2014/12/23/23/14/48/115/lDCHYY", 
+        "http://hub/channel/stumptown/2014/12/23/23/14/49/887/x46z8p" 
+        ]
+  }
+}
+</code></pre>
+
+<h2>
+<a id="channel-status" class="anchor" href="#channel-status" aria-hidden="true"><span class="octicon octicon-link"></span></a>channel status</h2>
+
+<p>A GET on the status link for a channel will return the link to the latest item in the channel.
+If a replicationSource is defined, it will also return the link the the latest in the replication hub.</p>
+
+<p><code>GET http://hub/channel/stumptown/status</code></p>
+
+<p>On success: <code>HTTP/1.1 200 OK</code></p>
+
+<pre><code>{
+    "_links": {
+        "self": {
+            "href": "http://hub/channel/stumptown/status"
+        },
+        "latest": {
+            "href": "http://hub/channel/stumptown/2015/01/23/17/33/08/895/1524"
+        },
+        "replicationSourceLatest": {
+            "href": "http://hub-other/channel/stumptown/1526"
+        }
+    }
+}
+</code></pre>
+
+<h2>
+<a id="channel-limits" class="anchor" href="#channel-limits" aria-hidden="true"><span class="octicon octicon-link"></span></a>channel limits</h2>
+
+<p><code>ttlDays</code> and <code>maxItems</code> are mutually exclusive.  When one field is set, the other must be 0 (zero).</p>
+
+<p><code>ttlDays</code> is used to limit the number of items in a channel by time.
+The hub strictly enforces the time limit for range queries, and is less strict for indivdual items.</p>
+
+<p>For example, if a channel has ttlDays = 3, and you query `/earliest/10', the results returned will be limited to 3 days ago from now.
+Each item returned will be available for 15 minutes after the ttl has expired.</p>
+
+<p><code>maxItems</code> has a limit of 5000 items.  It is intended to be useful for channels that are updated infrequently.
+Once a channel has reached its maxItems, older items will be removed.  maxItems should be considered eventually consistent.</p>
+
+<p>For eaxmple, if you quickly insert 1,000 items into a channel with maxItems = 50, a query of <code>/latest/100</code> will return 100 items.
+ Within 12 hours, the limit of 50 will be enforced.</p>
+
+<p>If you change a channel from ttlDays to maxItems, it will also take up to 12 hours for the limit to be enforced.</p>
+
+<h2>
+<a id="tag-interface" class="anchor" href="#tag-interface" aria-hidden="true"><span class="octicon octicon-link"></span></a>tag interface</h2>
+
+<p>Tags are used to logically group channels.  To retrieve all of the tags in the Hub:</p>
+
+<p><code>GET http://hub/tag</code></p>
+
+<p>On success: <code>HTTP/1.1 200 OK</code></p>
+
+<div class="highlight highlight-json"><pre>{
+  <span class="pl-s"><span class="pl-pds">"</span>_links<span class="pl-pds">"</span></span> : {
+    <span class="pl-s"><span class="pl-pds">"</span>self<span class="pl-pds">"</span></span> : {
+      <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>http://hub/tag<span class="pl-pds">"</span></span>
+    },
+    <span class="pl-s"><span class="pl-pds">"</span>tags<span class="pl-pds">"</span></span> : [ {
+      <span class="pl-s"><span class="pl-pds">"</span>name<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>orders<span class="pl-pds">"</span></span>,
+      <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>http://hub/tag/orders<span class="pl-pds">"</span></span>
+    }, {
+      <span class="pl-s"><span class="pl-pds">"</span>name<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>coffee<span class="pl-pds">"</span></span>,
+      <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>http://hub/tag/coffee<span class="pl-pds">"</span></span>
+    } ]
+  }
+}</pre></div>
+
+<p>Any of the returned tag links can be followed to see all of the channels with that tag:</p>
+
+<p><code>GET http://hub/tag/coffee</code></p>
+
+<p>On success: <code>HTTP/1.1 200 OK</code></p>
+
+<div class="highlight highlight-json"><pre>{
+  <span class="pl-s"><span class="pl-pds">"</span>_links<span class="pl-pds">"</span></span> : {
+    <span class="pl-s"><span class="pl-pds">"</span>self<span class="pl-pds">"</span></span> : {
+      <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>http://hub/tag/coffee<span class="pl-pds">"</span></span>
+    },
+    <span class="pl-s"><span class="pl-pds">"</span>latest<span class="pl-pds">"</span></span>: {
+        <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/tag/coffee/latest<span class="pl-pds">"</span></span>
+    },
+    <span class="pl-s"><span class="pl-pds">"</span>earliest<span class="pl-pds">"</span></span>: {
+        <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/tag/coffee/earliest<span class="pl-pds">"</span></span>
+    },
+    <span class="pl-s"><span class="pl-pds">"</span>time<span class="pl-pds">"</span></span>: {
+        <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/tag/coffee/time<span class="pl-pds">"</span></span>
+    },
+    <span class="pl-s"><span class="pl-pds">"</span>channels<span class="pl-pds">"</span></span> : [ {
+      <span class="pl-s"><span class="pl-pds">"</span>name<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>stumptown<span class="pl-pds">"</span></span>,
+      <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown<span class="pl-pds">"</span></span>
+    }, {
+      <span class="pl-s"><span class="pl-pds">"</span>name<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>spella<span class="pl-pds">"</span></span>,
+      <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/spella<span class="pl-pds">"</span></span>
+    } ]
+  }
+}</pre></div>
+
+<h2>
+<a id="tag-unions" class="anchor" href="#tag-unions" aria-hidden="true"><span class="octicon octicon-link"></span></a>tag unions</h2>
+
+<p>Tags can also be used for a read-only union set of all it's channels.
+<a href="#next-and-previous-links">next and previous links</a>, <a href="#latest-channel-item">latest</a>, 
+<a href="#earliest-channel-item">earliest</a> and <a href="#time-interface">time</a> work the same as their channel analogs.
+Tag operations can be accessed through /tag/{tag-name} or /channel/{channel-name}/</p>
+
+<p>Example operations:</p>
+
+<pre><code>GET http://hub/tag/coffee/latest
+GET http://hub/tag/coffee/earliest
+GET http://hub/tag/coffee/2015/06/25/16
+GET http://hub/tag/coffee/2015/06/24/19/48/17/000/abc/previous
+GET http://hub/tag/coffee/2015/06/24/19/48/17/000/abc/next/10
+GET http://hub/channel/spella/2015/06/24/19/48/17/000/abc/next/10?tag=coffee
+</code></pre>
+
+<p>Operations through the channel interface (/channel/{channel-name}/) can a tag parameter.  Using the tag parameter allows the user to stay in the tag context.</p>
+
+<p>For example:</p>
+
+<p><code>GET http://hub/tag/coffee/latest</code></p>
+
+<p>returns a redirect to</p>
+
+<p><code>http://hub/channel/spella/2015/06/24/19/48/17/000/abc?tag=coffee</code></p>
+
+<p>Following the previous on that item and including the tag</p>
+
+<p><code>http://hub/channel/spella/2015/06/24/19/48/17/000/abc/previous?tag=coffee</code></p>
+
+<p>returns a redirect to an item on a different channel</p>
+
+<p><code>http://hub/channel/stumptown/2015/06/24/19/40/17/000/qwe?tag=coffee</code></p>
+
+<h2>
+<a id="time-interface" class="anchor" href="#time-interface" aria-hidden="true"><span class="octicon octicon-link"></span></a>time interface</h2>
+
+<p>The time interface provides a variety of options to query data in a hub channel.  All queries will only show items
+ with stable ordering by default.  If you want to see items which might be unstable, add the parameter <code>?stable=false</code></p>
+
+<p>To see time format options, issue a GET request on the <code>time</code> link returned from the channel metadata.</p>
+
+<p><code>GET http://hub/channel/stumptown/time</code></p>
+
+<div class="highlight highlight-json"><pre>{
+    <span class="pl-s"><span class="pl-pds">"</span>_links<span class="pl-pds">"</span></span>: {
+        <span class="pl-s"><span class="pl-pds">"</span>self<span class="pl-pds">"</span></span>: {
+            <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/time<span class="pl-pds">"</span></span>
+        },
+        <span class="pl-s"><span class="pl-pds">"</span>second<span class="pl-pds">"</span></span>: {
+            <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/2014/12/23/05/58/55<span class="pl-pds">"</span></span>,
+            <span class="pl-s"><span class="pl-pds">"</span>template<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/time/{year}/{month}/{day}/{hour}/{minute}/{second}{?stable}<span class="pl-pds">"</span></span>,
+            <span class="pl-s"><span class="pl-pds">"</span>redirect<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/time/second<span class="pl-pds">"</span></span>
+        },
+        <span class="pl-s"><span class="pl-pds">"</span>minute<span class="pl-pds">"</span></span>: {
+            <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/2014/12/23/05/58<span class="pl-pds">"</span></span>,
+            <span class="pl-s"><span class="pl-pds">"</span>template<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/time/{year}/{month}/{day}/{hour}/{minute}{?stable}<span class="pl-pds">"</span></span>,
+            <span class="pl-s"><span class="pl-pds">"</span>redirect<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/time/minute<span class="pl-pds">"</span></span>
+        },
+        <span class="pl-s"><span class="pl-pds">"</span>hour<span class="pl-pds">"</span></span>: {
+            <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/2014/12/23/05<span class="pl-pds">"</span></span>,
+            <span class="pl-s"><span class="pl-pds">"</span>template<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/time/{year}/{month}/{day}/{hour}{?stable}<span class="pl-pds">"</span></span>,
+            <span class="pl-s"><span class="pl-pds">"</span>redirect<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/time/hour<span class="pl-pds">"</span></span>
+        },
+        <span class="pl-s"><span class="pl-pds">"</span>day<span class="pl-pds">"</span></span>: {
+            <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/2014/12/23<span class="pl-pds">"</span></span>,
+            <span class="pl-s"><span class="pl-pds">"</span>template<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/time/{year}/{month}/{day}{?stable}<span class="pl-pds">"</span></span>,
+            <span class="pl-s"><span class="pl-pds">"</span>redirect<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/time/day<span class="pl-pds">"</span></span>
+        }
+    },
+    <span class="pl-s"><span class="pl-pds">"</span>now<span class="pl-pds">"</span></span>: {
+        <span class="pl-s"><span class="pl-pds">"</span>iso8601<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>2014-12-23T05:59:00.162Z<span class="pl-pds">"</span></span>,
+        <span class="pl-s"><span class="pl-pds">"</span>millis<span class="pl-pds">"</span></span>: <span class="pl-c1">1419314340162</span>
+    },
+    <span class="pl-s"><span class="pl-pds">"</span>stable<span class="pl-pds">"</span></span>: {
+        <span class="pl-s"><span class="pl-pds">"</span>iso8601<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>2014-12-23T05:58:55.000Z<span class="pl-pds">"</span></span>,
+        <span class="pl-s"><span class="pl-pds">"</span>millis<span class="pl-pds">"</span></span>: <span class="pl-c1">1419314335000</span>
+    }
+}</pre></div>
+
+<p>Call a named uri, and the Hub will issue a 303 redirect for the current time with the specified resolution.</p>
+
+<p><code>HEAD http://localhost:9080/channel/stumptown/time/second</code></p>
+
+<p>On success:  <code>HTTP/1.1 303 See Other</code>
+`Location: http://hub/channel/stumptown/2014/01/13/10/42/31</p>
+
+<p>A GET on the returned Location will return all of the content URIs within that period.</p>
+
+<p><code>GET http://hub/channel/stumptown/2014/01/13/10/42/31</code></p>
+
+<p>On success:  <code>HTTP/1.1 200 OK</code>
+Content-Type is <code>application/json</code></p>
+
+<div class="highlight highlight-json"><pre>{
+  <span class="pl-s"><span class="pl-pds">"</span>_links<span class="pl-pds">"</span></span> : {
+    <span class="pl-s"><span class="pl-pds">"</span>self<span class="pl-pds">"</span></span> : {
+      <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/2014/01/13/10/42/31<span class="pl-pds">"</span></span>
+    },
+    <span class="pl-s"><span class="pl-pds">"</span>uris<span class="pl-pds">"</span></span> : [ 
+        <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/2014/01/13/10/42/31/149/{hash1}<span class="pl-pds">"</span></span>, 
+        <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/2014/01/13/10/42/31/359/{hash2}<span class="pl-pds">"</span></span>,
+        <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/2014/01/13/10/42/31/642/{hash3}<span class="pl-pds">"</span></span> 
+    ]
+  }</pre></div>
+
+<p>If no items were submitted during that time, 'uris' is an empty array.
+If the time requested is the current minute, 'uri's will reflect all of the items inserted within the minute so far, and will
+increase as other items are inserted.</p>
+
+<h3>
+<a id="time-resolution" class="anchor" href="#time-resolution" aria-hidden="true"><span class="octicon octicon-link"></span></a>time resolution</h3>
+
+<p>You can request all of the items by the time resolution you specify in the URL.<br>
+For all the items in a minute: <code>GET http://hub/channel/stumptown/2014/01/13/10/42</code>
+For all the items in an hour: <code>GET http://hub/channel/stumptown/2014/01/13/10</code></p>
+
+<p>You can also access the urls via convenience methods:</p>
+
+<p><code>HEAD http://hub/channel/stumptown/time/minute</code>
+<code>HEAD http://hub/channel/stumptown/time/hour</code></p>
+
+<p>The output format is the same regardless of time resolution</p>
+
+<h2>
+<a id="subscribe-to-events" class="anchor" href="#subscribe-to-events" aria-hidden="true"><span class="octicon octicon-link"></span></a>subscribe to events</h2>
+
+<p>Clients may "subscribe" to single channel events by listening on a channel's websocket.<br>
+In the channel metadata there is a <code>ws</code> link, and a websocket aware client may connect to this URL.</p>
+
+<p>Clients should be aware that websockets are a "best effort" service, and are not stateful.  If the ws connection is lost,
+which will happen on hub server restarts, the client will need to reconnect, and may have missed items.</p>
+
+<p>Once connected, the line-oriented protocol is simple:</p>
+
+<p>Each time data is inserted into the channel, the hub will send a line to the client with the
+URL for that content.</p>
+
+<pre><code>http://hub/channel/stumptown/2014/01/13/10/42/31/149/{hash1}
+http://hub/channel/stumptown/2014/01/13/10/42/31/359/{hash2}
+http://hub/channel/stumptown/2014/01/13/10/42/31/642/{hash3}
+...etc...
+</code></pre>
+
+<p>The returned items are stable only.</p>
+
+<h2>
+<a id="group-callback" class="anchor" href="#group-callback" aria-hidden="true"><span class="octicon octicon-link"></span></a>group callback</h2>
+
+<p>The Group Callback mechanism is an alternative to WebSockets for consuming events.  This POSTs json uris via HTTP, and
+the Hub server keeps track of the Group's state.</p>
+
+<ul>
+<li><p><code>name</code> is used in the url for the callback.  Names are limited to 48 characters and may only contain <code>a-z</code>, <code>A-Z</code>, <code>0-9</code> and underscore <code>_</code>.</p></li>
+<li><p><code>callbackUrl</code> is the fully qualified location to receive callbacks from the server.</p></li>
+<li><p><code>channelUrl</code> is the fully qualified channel location to monitor for new items.</p></li>
+<li><p><code>parallelCalls</code> is the optional number of callbacks to make in parallel.  The default value is <code>1</code>.
+If parallelCalls is higher than one, callback ordering is not guaranteed.</p></li>
+<li><p><code>startItem</code> is the optional fully qualified item location where the callback should start from.  The startItem will not be sent.
+startItem is <em>only</em> used when creating a group callback.  If you want to change the pointer of a callback, you will need to
+delete the callback first.</p></li>
+</ul>
+
+<p>To get a list of existing group callbacks:</p>
+
+<p><code>GET http://hub/group</code></p>
+
+<p>To create a new group callback:</p>
+
+<p><code>PUT http://hub/group/{name}</code></p>
+
+<div class="highlight highlight-json"><pre>{
+  <span class="pl-s"><span class="pl-pds">"</span>callbackUrl<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>http://client/path/callback<span class="pl-pds">"</span></span>,
+  <span class="pl-s"><span class="pl-pds">"</span>channelUrl<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown<span class="pl-pds">"</span></span>,
+  <span class="pl-s"><span class="pl-pds">"</span>parallelCalls<span class="pl-pds">"</span></span> : <span class="pl-c1">2</span>,
+  <span class="pl-s"><span class="pl-pds">"</span>startItem<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/2015/02/06/22/28/43/239/s03ub2<span class="pl-pds">"</span></span>
+}</pre></div>
+
+<p>Once a Group is created, it can not be changed, only deleted.  PUT may be safely called multiple times with the same
+ configuration.  Changes to <code>startItem</code> will be ignored.</p>
+
+<p>To see the configuration and status of a group callback:</p>
+
+<p><code>GET http://hub/group/{name}</code></p>
+
+<p>To delete a group callback:</p>
+
+<p><code>DELETE http://hub/group/{name}</code></p>
+
+<p>DELETE will return a 202, and it may take up to a minute to properly stop a group from servicing the callback.</p>
+
+<h4>
+<a id="behavior" class="anchor" href="#behavior" aria-hidden="true"><span class="octicon octicon-link"></span></a>Behavior</h4>
+
+<p>The application listening at <code>callbackUrl</code> will get a payload POSTed to it for every new item in the channel, starting after <code>startItem</code> or at the time the group is created.
+200 is considered a successful response.  Any other response is considered an error, and will cause the server to retry.   Redirects are allowed.<br>
+Retries will use an exponential backoff up to one minute, and the server will continue to retry at one minute intervals indefinitely.</p>
+
+<div class="highlight highlight-json"><pre>{
+  <span class="pl-s"><span class="pl-pds">"</span>name<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>stumptownCallback<span class="pl-pds">"</span></span>,
+  <span class="pl-s"><span class="pl-pds">"</span>uris<span class="pl-pds">"</span></span> : [ <span class="pl-s"><span class="pl-pds">"</span>http://hub/channel/stumptown/2014/01/13/10/42/31/759/s03ub2<span class="pl-pds">"</span></span> ]
+}</pre></div>
+
+<h2>
+<a id="provider-interface" class="anchor" href="#provider-interface" aria-hidden="true"><span class="octicon octicon-link"></span></a>provider interface</h2>
+
+<p>For external data providers, there is a simplified interface suitable for exposing to the authenticated outside world.</p>
+
+<p><code>POST http://hub/provider/</code></p>
+
+<ul>
+<li>it creates a channel if it doesn't exist</li>
+<li>it expects a <code>channelName</code> header</li>
+<li>does not support any other HTTP methods</li>
+<li>does not return any links</li>
+<li>access by external data providers is controlled through a proxy maintained by Operations</li>
+</ul>
+
+<h2>
+<a id="delete-a-channel" class="anchor" href="#delete-a-channel" aria-hidden="true"><span class="octicon octicon-link"></span></a>delete a channel</h2>
+
+<p>To delete a channel when after you no longer need it, simply issue a <code>DELETE</code> command to that channel.
+Delete returns a 202, indicating that the request has been accepted, and will take an indeterminate time to process.
+If you re-create a channel before all the data has been deleted, the behavior is undefined.</p>
+
+<p><code>DELETE http://hub/channel/stumptown</code></p>
+
+<p>Here's how you can do this with curl:</p>
+
+<div class="highlight highlight-bash"><pre>curl -i -X DELETE http://hub/channel/stumptown</pre></div>
+
+<h2>
+<a id="replication" class="anchor" href="#replication" aria-hidden="true"><span class="octicon octicon-link"></span></a>replication</h2>
+
+<p>The hub can replicate a source channel from another hub instance into a destination channel.  The destination channel can have any name.</p>
+
+<p>To configure replication, specify <code>replicationSource</code> when creating the new channel in the desired destination.</p>
+
+<p>To stop replication, either delete the destination channel, or PUT the destination channel with a blank <code>replicationSource</code>.</p>
+
+<p>Modifications to configuration takes effect immediately.</p>
+
+<p>Replication destination channels do not allow inserts.</p>
+
+<h2>
+<a id="alerts" class="anchor" href="#alerts" aria-hidden="true"><span class="octicon octicon-link"></span></a>alerts</h2>
+
+<p>The hub can send alerts based on the number of items in a channel, or how long a group callback is lagging a channel.</p>
+
+<p>For channels, an alert is created if inserts in <code>source</code> <code>operator</code> <code>threshold</code> within <code>timeWindowMinutes</code>
+eg: if inserts in stumptown &lt;  100 within 20 minutes</p>
+
+<p>For group callbacks, an alert is created if the callback <code>source</code> lags behind it's channel by <code>timeWindowMinutes</code>
+eg: if the last completed callback to stumptownCallback is 10 minutes behind the last insert into it's channel</p>
+
+<ul>
+<li><p><code>name</code> <em>is case sensitive</em>, is limited to <em>48 characters</em>, and may only contain <code>a-z</code>, <code>A-Z</code>, <code>0-9</code> and underscore <code>_</code>.</p></li>
+<li><p><code>source</code> is the name of the channel or group to monitor</p></li>
+<li><p><code>serviceName</code> is a user defined end point for the alert, which could be an email address, service name, etc</p></li>
+<li><p><code>type</code> can be <code>channel</code> or <code>group</code></p></li>
+<li><p><code>timeWindowMinutes</code> the period of time to evaluate</p></li>
+<li><p><code>operator</code> (channel only) can be <code>&gt;=</code>, <code>&gt;</code>, <code>==</code>, <code>&lt;</code>, or <code>&lt;=</code></p></li>
+<li><p><code>threshold</code> (channel only) is the value to compare</p></li>
+</ul>
+
+<h3>
+<a id="create-or-change-and-alert" class="anchor" href="#create-or-change-and-alert" aria-hidden="true"><span class="octicon octicon-link"></span></a>create or change and alert</h3>
+
+<p>Alerts can be created and changed with PUT </p>
+
+<p><code>PUT http://hub/alert/stumptownAlert</code></p>
+
+<ul>
+<li>Content-type: application/json</li>
+</ul>
+
+<div class="highlight highlight-json"><pre>{
+    <span class="pl-s"><span class="pl-pds">"</span>source<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>stumptown<span class="pl-pds">"</span></span>,
+    <span class="pl-s"><span class="pl-pds">"</span>serviceName<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>stumptown@example.com<span class="pl-pds">"</span></span>,
+    <span class="pl-s"><span class="pl-pds">"</span>timeWindowMinutes<span class="pl-pds">"</span></span>: <span class="pl-c1">5</span>,
+    <span class="pl-s"><span class="pl-pds">"</span>type<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>channel<span class="pl-pds">"</span></span>,
+    <span class="pl-s"><span class="pl-pds">"</span>operator<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>==<span class="pl-pds">"</span></span>,
+    <span class="pl-s"><span class="pl-pds">"</span>threshold<span class="pl-pds">"</span></span>: <span class="pl-c1">0</span>
+}</pre></div>
+
+<p>On success:  <code>HTTP/1.1 201 OK</code></p>
+
+<div class="highlight highlight-json"><pre>{
+    <span class="pl-s"><span class="pl-pds">"</span>name<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>stumptownAlert<span class="pl-pds">"</span></span>,
+    <span class="pl-s"><span class="pl-pds">"</span>source<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>stumptown<span class="pl-pds">"</span></span>,
+    <span class="pl-s"><span class="pl-pds">"</span>serviceName<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>stumptown@example.com<span class="pl-pds">"</span></span>,
+    <span class="pl-s"><span class="pl-pds">"</span>timeWindowMinutes<span class="pl-pds">"</span></span>: <span class="pl-c1">5</span>,
+    <span class="pl-s"><span class="pl-pds">"</span>type<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>channel<span class="pl-pds">"</span></span>,
+    <span class="pl-s"><span class="pl-pds">"</span>operator<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>==<span class="pl-pds">"</span></span>,
+    <span class="pl-s"><span class="pl-pds">"</span>threshold<span class="pl-pds">"</span></span>: <span class="pl-c1">0</span>
+    <span class="pl-s"><span class="pl-pds">"</span>_links<span class="pl-pds">"</span></span><span class="pl-ii">:</span> {
+        <span class="pl-s"><span class="pl-pds">"</span>self<span class="pl-pds">"</span></span>: {
+            <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub-v2.svc.prod/alert/stumptownAlert<span class="pl-pds">"</span></span>
+        },
+        <span class="pl-s"><span class="pl-pds">"</span>status<span class="pl-pds">"</span></span>: {
+            <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub-v2.svc.prod/alert/stumptownAlert/status<span class="pl-pds">"</span></span>
+        }
+    }
+}</pre></div>
+
+<h3>
+<a id="channel-alert-status" class="anchor" href="#channel-alert-status" aria-hidden="true"><span class="octicon octicon-link"></span></a>channel alert status</h3>
+
+<p>Following the status link from _links.status.href shows the channel history for the current state of the alert</p>
+
+<p><code>GET http://hub-v2.svc.prod/alert/stumptownAlert/status</code></p>
+
+<div class="highlight highlight-json"><pre>{
+    <span class="pl-s"><span class="pl-pds">"</span>name<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>stumptownAlert<span class="pl-pds">"</span></span>,
+    <span class="pl-s"><span class="pl-pds">"</span>period<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>minute<span class="pl-pds">"</span></span>,
+    <span class="pl-s"><span class="pl-pds">"</span>alert<span class="pl-pds">"</span></span>: <span class="pl-c1">true</span>,
+    <span class="pl-s"><span class="pl-pds">"</span>type<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>channel<span class="pl-pds">"</span></span>,
+    <span class="pl-s"><span class="pl-pds">"</span>history<span class="pl-pds">"</span></span>: [
+    {
+        <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub-v2.svc.prod/channel/stumptown/2015/06/17/19/21?stable=true<span class="pl-pds">"</span></span>,
+        <span class="pl-s"><span class="pl-pds">"</span>items<span class="pl-pds">"</span></span>: <span class="pl-c1">0</span>
+    },
+    {
+        <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub-v2.svc.prod/channel/stumptown/2015/06/17/19/22?stable=true<span class="pl-pds">"</span></span>,
+        <span class="pl-s"><span class="pl-pds">"</span>items<span class="pl-pds">"</span></span>: <span class="pl-c1">0</span>
+    },
+    {
+        <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub-v2.svc.prod/channel/stumptown/2015/06/17/19/23?stable=true<span class="pl-pds">"</span></span>,
+        <span class="pl-s"><span class="pl-pds">"</span>items<span class="pl-pds">"</span></span>: <span class="pl-c1">0</span>
+    },
+    {
+        <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub-v2.svc.prod/channel/stumptown/2015/06/17/19/24?stable=true<span class="pl-pds">"</span></span>,
+        <span class="pl-s"><span class="pl-pds">"</span>items<span class="pl-pds">"</span></span>: <span class="pl-c1">0</span>
+    },
+    {
+        <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub-v2.svc.prod/channel/stumptown/2015/06/17/19/25?stable=true<span class="pl-pds">"</span></span>,
+        <span class="pl-s"><span class="pl-pds">"</span>items<span class="pl-pds">"</span></span>: <span class="pl-c1">0</span>
+    }
+    ],
+    <span class="pl-s"><span class="pl-pds">"</span>_links<span class="pl-pds">"</span></span>: {
+        <span class="pl-s"><span class="pl-pds">"</span>self<span class="pl-pds">"</span></span>: {
+            <span class="pl-s"><span class="pl-pds">"</span>href<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>http://hub-v2.svc.prod/alert/stumptownAlert/status<span class="pl-pds">"</span></span>
+        }
+    }
+}</pre></div>
+
+<h3>
+<a id="group-alert-status" class="anchor" href="#group-alert-status" aria-hidden="true"><span class="octicon octicon-link"></span></a>group alert status</h3>
+
+<p>Following the status link from _links.status.href shows the latest item in a channel, and the last completed callback for that group.</p>
+
+<p><code>GET http://hub-v2.svc.prod/alert/stumptownGroup/status</code></p>
+
+<pre><code>{
+    "name": "stumptownGroup",
+    "alert": false,
+    "type": "group",
+    "history": [
+        {
+        "href": "http://hub-v2.svc.prod/channel/stumptown/2015/06/17/18/34/38/306/UqCNR4",
+        "name": "channelLatest"
+        },
+        {
+        "href": "http://hub-v2.svc.prod/channel/stumptown/2015/06/17/18/34/38/306/UqCNR4",
+        "name": "lastCompletedCallback"
+        }
+    ],
+    "_links": {
+        "self": {
+            "href": "http://hub-v2.svc.prod/alert/stumptownGroup/status"
+        }
+    }
+}
+</code></pre>
+
+<h2>
+<a id="health-check" class="anchor" href="#health-check" aria-hidden="true"><span class="octicon octicon-link"></span></a>health check</h2>
+
+<p>The Health Check returns a 200 status code when the server can connect to each data store.
+If the server can not access a data store, it will return a 500 status code.</p>
+
+<p>Responding to http connections is the last step on startup, so the health check will be unresponsive until startup is complete.
+On shutdown, the server immediately stops responding to new http connections, so there are no separate codes for startup and shutdown.</p>
+
+<p><code>GET http://hub/health</code></p>
+
+<div class="highlight highlight-json"><pre>{
+  <span class="pl-s"><span class="pl-pds">"</span>healthy<span class="pl-pds">"</span></span> : <span class="pl-c1">true</span>,
+  <span class="pl-s"><span class="pl-pds">"</span>description<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>OK<span class="pl-pds">"</span></span>,
+  <span class="pl-s"><span class="pl-pds">"</span>version<span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>2014-03-26.126<span class="pl-pds">"</span></span>
+}</pre></div>
+
+<h2>
+<a id="access-control" class="anchor" href="#access-control" aria-hidden="true"><span class="octicon octicon-link"></span></a>access control</h2>
+
+<p>Currently, all access to the Hub is uncontrolled, and does not require authentication.
+Over time, access control will be added to some of the API, starting with Channel Deletion and Replication Management.
+To request a change to a controlled API, or to request access, please use the <a href="https://groups.google.com/a/conducivetech.com/forum/#!forum/hub-discuss">hub-discuss forum</a></p>
+
+<h2>
+<a id="encrypted-hub" class="anchor" href="#encrypted-hub" aria-hidden="true"><span class="octicon octicon-link"></span></a>encrypted-hub</h2>
+
+<p>The Encrypted Hub (EH) is a separate installation of The Hub.
+EH also has some additional features to the normal Hub:</p>
+
+<ul>
+<li>All channel items are encrypted at rest (this relies on disk level encryption)</li>
+<li>All channel items are encrypted in flight</li>
+<li>All access to channel items (reads and writes) require authentication and are access controlled</li>
+</ul>
+
+<p>Channel inserts can be audited by a GET or HEAD to each channel item.  The creator of the record is returned in a <code>User</code> header.</p>
+
+<h2>
+<a id="development" class="anchor" href="#development" aria-hidden="true"><span class="octicon octicon-link"></span></a>development</h2>
+
+<p>The Hub is a work in progress.  If you'd like to contribute, let us know.</p>
+
+<p><a href="https://github.com/flightstats/hubv2/wiki/Install-hub-locally">Install locally</a></p>
+
+<p>General Rules for Development:</p>
+
+<ul>
+<li>Only pull from master</li>
+<li>Create a new branch for features and bugs, avoiding '/' in the branch name</li>
+<li>after testing, create a pull request from the feature branch to master</li>
+</ul>
+      </section>
+    </div>
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        <p class="copyright">Hub maintained by <a href="https://github.com/flightstats">flightstats</a></p>
+        <p>Published with <a href="https://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+
+    
+
+  </body>
+</html>
