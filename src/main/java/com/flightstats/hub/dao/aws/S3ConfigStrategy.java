@@ -60,6 +60,9 @@ class S3ConfigStrategy {
     }
 
     private static void addRule(List<BucketLifecycleConfiguration.Rule> rules, ChannelConfig config) {
+        if (config.isHistorical()) {
+            return;
+        }
         if (config.getTtlDays() > 0) {
             if (config.isSingle() || config.isBoth()) {
                 rules.add(createRule(config, ""));
